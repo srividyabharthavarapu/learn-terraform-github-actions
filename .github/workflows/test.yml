@@ -1,0 +1,48 @@
+name: "Deploy via Terraform Cloud"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - po-qa-fgw
+          - po-uat-fgw
+          - po-prod-fgw
+
+concurrency: ferrygateway-integration-${{ github.event.inputs.environment }}
+
+env:
+  TF_CLOUD_ORGANIZATION: "expian"
+  TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
+  CONFIG_DIRECTORY: "./"
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    env:
+      TF_WORKSPACE: ${{ github.event.inputs.environment }}-workspace
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Upload Configuration
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.0.0
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: ${{ env.CONFIG_DIRECTORY }}
+
+      - name: Create Plan Run
+        id: run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.upload.outputs.configuration_version_id }}
+          plan_only: true # Only create a plan, do not apply
+
+      - name: Output Terraform Cloud Plan Link
+        run: |
+          echo "View the Terraform plan in Terraform Cloud:"
+          echo "${{ steps.run.outputs.run_link }}"
